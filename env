@@ -1,0 +1,8 @@
+# =============================================================================
+# Variáveis de Ambiente — Sistema RAG Bíblia
+# =============================================================================
+# Substitua o valor abaixo pela sua chave de API do Google AI Studio
+# Obtenha gratuitamente em: https://aistudio.google.com/app/apikey
+# =============================================================================
+
+GOOGLE_API_KEY=sua_chave_aqui
