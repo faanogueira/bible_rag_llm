@@ -30,7 +30,6 @@ Do ponto de vista técnico, o sistema implementa um pipeline RAG completo: o PDF
 | Leitura do PDF | PyPDF |
 | Variáveis de ambiente | python-dotenv |
 
----
 
 ---
 
@@ -97,28 +96,6 @@ source .venv/bin/activate
 
 pip install langchain langchain-google-genai langchain-community \
             langchain-chroma pypdf python-dotenv chromadb
-```
-
----
-
-## Configuração
-
-**1. API Key do Google Gemini**
-
-Acesse [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey), gere uma chave gratuita e configure o `.env`:
-
-```env
-GOOGLE_API_KEY=sua_chave_aqui
-```
-
-**2. PDF da Bíblia**
-
-Coloque o arquivo na pasta `data/`:
-
-```
-bible_rag_llm/
-└── data/
-    └── biblia_arc.pdf
 ```
 
 ---
