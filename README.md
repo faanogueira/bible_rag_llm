@@ -1,4 +1,4 @@
-# ✝️ Bible RAG — Chat com a Bíblia Sagrada ARC
+# ✝️ BibleChat RAG/LLM
 
 <div align="center">
 
@@ -6,11 +6,31 @@
 ![LangChain](https://img.shields.io/badge/LangChain-0.3+-1C3C3C?style=flat&logo=langchain&logoColor=white)
 ![Google Gemini](https://img.shields.io/badge/Google%20Gemini-2.0%20Flash-4285F4?style=flat&logo=google&logoColor=white)
 ![ChromaDB](https://img.shields.io/badge/ChromaDB-Local-FF6B35?style=flat)
-
-**Sistema RAG para consulta inteligente à Bíblia Sagrada versão ARC.**  
-Perguntas em linguagem natural com respostas fundamentadas exclusivamente no texto bíblico.
+![RAG](https://img.shields.io/badge/RAG-LangChain%20%2B%20ChromaDB-8B5CF6?style=flat)
 
 </div>
+
+---
+
+Chat inteligente com a Bíblia Sagrada utilizando Recuperação Aumentada por Geração (RAG) com LangChain e Google Gemini. 
+
+O **Bible RAG** aplica a técnica de _Retrieval-Augmented Generation (RAG)_ sobre o maior manual de instruções para a vida humana já escrito — a **Bíblia Sagrada**. Com mais de **3.500 anos de história**, 66 livros, 1.189 capítulos e mais de 31.000 versículos, a Bíblia é o livro mais publicado, traduzido e lido de todos os tempos. Este projeto transforma esse vasto corpus em uma **base de conhecimento semântica**, permitindo que qualquer pessoa faça perguntas em linguagem natural e receba respostas precisas, contextualizadas e fiéis ao texto da versão **Almeida Revista e Corrigida (ARC)**.
+
+Do ponto de vista técnico, o sistema implementa um pipeline RAG completo: o PDF da Bíblia é segmentado em chunks, vetorizado com o modelo de embeddings do Google e indexado em um banco vetorial ChromaDB persistente. A cada consulta, os trechos mais semanticamente relevantes são recuperados e enviados ao **Google Gemini 2.0 Flash** como contexto, garantindo respostas fundamentadas exclusivamente no texto bíblico — sem alucinações, sem invenções.
+
+**Stack utilizada:**
+
+| Camada | Tecnologia |
+|---|---|
+| Linguagem | Python 3.10+ |
+| Orquestração RAG | LangChain 0.3+ |
+| Modelo de linguagem | Google Gemini 2.0 Flash |
+| Embeddings | Google `embedding-001` |
+| Banco vetorial | ChromaDB (local, persistente) |
+| Leitura do PDF | PyPDF |
+| Variáveis de ambiente | python-dotenv |
+
+---
 
 ---
 
