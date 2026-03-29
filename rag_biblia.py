@@ -3,21 +3,25 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
-from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-from langchain_chroma import Chroma
-from langchain.chains import RetrievalQA
-from langchain.prompts import PromptTemplate
+from llama_index.core import (
+    VectorStoreIndex,
+    SimpleDirectoryReader,
+    StorageContext,
+    load_index_from_storage,
+    Settings,
+)
+from llama_index.llms.google_genai import GoogleGenAI
+from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
+from llama_index.core.prompts import PromptTemplate
 
 
 # -----------------------------------------------------------------------------
-# Caminhos
+# Caminhos e configuração
 # -----------------------------------------------------------------------------
 
 DIR_BASE      = Path(__file__).parent.resolve()
-CAMINHO_PDF   = DIR_BASE / "data" / "biblia_arc.pdf"
-PASTA_VETORES = DIR_BASE / "vetores_biblia"
+DIR_DATA      = DIR_BASE / "data"
+DIR_STORAGE   = DIR_BASE / "storage"
 
 load_dotenv(dotenv_path=DIR_BASE / ".env")
 
@@ -26,116 +30,74 @@ if not GOOGLE_API_KEY:
     print(f"❌ GOOGLE_API_KEY não encontrada. Configure: {DIR_BASE / '.env'}")
     sys.exit(1)
 
-MODELO_LLM        = "gemini-2.0-flash"
-MODELO_EMBEDDINGS = "models/embedding-001"
+Settings.llm = GoogleGenAI(
+    model="gemini-2.0-flash",
+    api_key=GOOGLE_API_KEY,
+    temperature=0.3,
+)
 
-
-# -----------------------------------------------------------------------------
-# Prompt
-# -----------------------------------------------------------------------------
-
-TEMPLATE_PROMPT = """
-Você é um assistente bíblico virtual de uma igreja evangélica, especializado
-na Bíblia Sagrada versão Almeida Revista e Corrigida (ARC).
-
-Responda com base EXCLUSIVAMENTE no contexto fornecido abaixo.
-Seja claro, respeitoso e fiel ao texto bíblico.
-Ao citar versículos, use o formato: Livro Capítulo:Versículo.
-Se a resposta não estiver no contexto, informe educadamente.
-
-Contexto:
-{context}
-
-Pergunta:
-{question}
-
-Resposta:
-"""
-
-prompt = PromptTemplate(
-    template=TEMPLATE_PROMPT,
-    input_variables=["context", "question"]
+Settings.embed_model = GoogleGenAIEmbedding(
+    model_name="models/embedding-001",
+    api_key=GOOGLE_API_KEY,
 )
 
 
 # -----------------------------------------------------------------------------
-# Pipeline RAG
+# Prompt personalizado
 # -----------------------------------------------------------------------------
 
-def carregar_e_dividir_pdf():
-    if not CAMINHO_PDF.exists():
-        print(f"❌ PDF não encontrado em: {CAMINHO_PDF}")
-        sys.exit(1)
+TEMPLATE = (
+    "Você é um assistente bíblico de uma igreja evangélica, especializado "
+    "na Bíblia Sagrada versão Almeida Revista e Corrigida (ARC).\n\n"
+    "Responda com base EXCLUSIVAMENTE no contexto abaixo. "
+    "Seja claro, respeitoso e fiel ao texto bíblico. "
+    "Ao citar versículos, use o formato Livro Capítulo:Versículo. "
+    "Se a resposta não estiver no contexto, informe educadamente.\n\n"
+    "Contexto:\n"
+    "---------------------\n"
+    "{context_str}\n"
+    "---------------------\n\n"
+    "Pergunta: {query_str}\n\n"
+    "Resposta:"
+)
 
-    print("📖 Carregando PDF...")
-    paginas = PyPDFLoader(str(CAMINHO_PDF)).load()
-    print(f"   {len(paginas)} páginas carregadas.")
-
-    chunks = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=200,
-        separators=["\n\n", "\n", " ", ""]
-    ).split_documents(paginas)
-
-    print(f"   {len(chunks)} chunks gerados.")
-    return chunks
+prompt = PromptTemplate(TEMPLATE)
 
 
-def criar_banco_vetorial(chunks):
-    embeddings = GoogleGenerativeAIEmbeddings(
-        model=MODELO_EMBEDDINGS,
-        google_api_key=GOOGLE_API_KEY
-    )
+# -----------------------------------------------------------------------------
+# Índice vetorial
+# -----------------------------------------------------------------------------
 
-    if PASTA_VETORES.exists() and any(PASTA_VETORES.iterdir()):
-        print("⚡ Carregando banco vetorial do disco...")
-        banco = Chroma(
-            persist_directory=str(PASTA_VETORES),
-            embedding_function=embeddings
-        )
+def carregar_ou_criar_indice():
+    if DIR_STORAGE.exists() and any(DIR_STORAGE.iterdir()):
+        print("⚡ Carregando índice do disco...")
+        storage_context = StorageContext.from_defaults(persist_dir=str(DIR_STORAGE))
+        index = load_index_from_storage(storage_context)
+        print("   Índice carregado.")
     else:
-        print(f"🔄 Criando banco vetorial em: {PASTA_VETORES}")
-        banco = Chroma.from_documents(
-            documents=chunks,
-            embedding=embeddings,
-            persist_directory=str(PASTA_VETORES)
-        )
+        if not DIR_DATA.exists() or not any(DIR_DATA.glob("*.pdf")):
+            print(f"❌ Nenhum PDF encontrado em: {DIR_DATA}")
+            sys.exit(1)
 
-    print(f"   {banco._collection.count()} vetores prontos.")
-    return banco
+        print("📖 Carregando PDF e criando índice vetorial...")
+        docs = SimpleDirectoryReader(str(DIR_DATA)).load_data()
+        print(f"   {len(docs)} páginas carregadas.")
 
+        index = VectorStoreIndex.from_documents(docs, show_progress=True)
+        index.storage_context.persist(persist_dir=str(DIR_STORAGE))
+        print(f"   ✅ Índice criado e salvo em: {DIR_STORAGE}")
 
-def criar_chain(banco):
-    llm = ChatGoogleGenerativeAI(
-        model=MODELO_LLM,
-        google_api_key=GOOGLE_API_KEY,
-        temperature=0.3,
-        convert_system_message_to_human=True
-    )
-
-    retriever = banco.as_retriever(
-        search_type="similarity",
-        search_kwargs={"k": 5}
-    )
-
-    return RetrievalQA.from_chain_type(
-        llm=llm,
-        chain_type="stuff",
-        retriever=retriever,
-        return_source_documents=True,
-        chain_type_kwargs={"prompt": prompt}
-    )
+    return index
 
 
 # -----------------------------------------------------------------------------
 # Chat
 # -----------------------------------------------------------------------------
 
-def iniciar_chat(chain):
+def iniciar_chat(query_engine):
     print("\n" + "=" * 65)
     print("  ✝️  ASSISTENTE BÍBLICO — Bíblia Sagrada ARC")
-    print("  Developed by Fábio Nogueira")
-    print("  Powered by Google Gemini + LangChain + ChromaDB")
+    print("  Powered by Google Gemini + LlamaIndex")
     print("=" * 65)
     print("  Digite sua pergunta ou 'sair' para encerrar.")
     print("=" * 65 + "\n")
@@ -153,17 +115,18 @@ def iniciar_chat(chain):
         print("\n⏳ Buscando na Bíblia...\n")
 
         try:
-            resultado   = chain.invoke({"query": pergunta})
-            resposta    = resultado["result"]
-            source_docs = resultado.get("source_documents", [])
+            resposta = query_engine.query(pergunta)
 
-            print(f"📖 Assistente:\n{resposta}")
+            print(f"📖 Assistente:\n{resposta}\n")
 
-            if source_docs:
+            fontes = getattr(resposta, "source_nodes", [])
+            if fontes:
                 paginas = sorted(set(
-                    doc.metadata.get("page", 0) + 1 for doc in source_docs
+                    int(n.metadata.get("page_label", n.metadata.get("page", 0)))
+                    for n in fontes
+                    if n.metadata
                 ))
-                print(f"\n📚 Fontes — páginas do PDF: {paginas}")
+                print(f"📚 Fontes — páginas do PDF: {paginas}")
 
         except Exception as e:
             print(f"❌ Erro: {e}")
@@ -177,15 +140,16 @@ def iniciar_chat(chain):
 
 if __name__ == "__main__":
     print("\n" + "=" * 65)
-    print("  Sistema RAG — Bíblia Sagrada")
+    print("  Sistema RAG — Bíblia Sagrada ARC")
+    print("  LlamaIndex + Google Gemini")
     print(f"  Diretório: {DIR_BASE}")
-    print("=" * 65)
+    print("=" * 65 + "\n")
 
-    chunks = carregar_e_dividir_pdf()
-    banco  = criar_banco_vetorial(chunks)
+    index = carregar_ou_criar_indice()
 
-    print("\n🔗 Inicializando pipeline RAG...")
-    chain = criar_chain(banco)
-    print("   ✅ Pronto!\n")
+    query_engine = index.as_query_engine(
+        similarity_top_k=5,
+        text_qa_template=prompt,
+    )
 
-    iniciar_chat(chain)
+    iniciar_chat(query_engine)
