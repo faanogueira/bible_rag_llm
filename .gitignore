@@ -1,5 +1,0 @@
-.env
-.venv/
-vetores_biblia/
-__pycache__/
-*.pyc
