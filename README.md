@@ -1,6 +1,10 @@
 # ✝️ Bible RAG — Chat com a Bíblia Sagrada ARC
 
 <div align="center">
+  <img src="cover.png" width="100%" alt="Capa do Projeto">
+</div>
+
+<div align="center">
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat&logo=python&logoColor=white)
 ![LlamaIndex](https://img.shields.io/badge/LlamaIndex-Core-7C3AED?style=flat)
